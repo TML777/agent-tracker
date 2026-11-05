@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Agent Tracker</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232f6f62'/%3E%3Cpath d='M4 4v8M8 4v5M12 4v3' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">Agent Tracker</div>
+        <div class="search">
+          <input id="search" type="search" placeholder="Search chats and projects" aria-label="Search chats and projects" autocomplete="off" spellcheck="false" />
+          <kbd aria-hidden="true">/</kbd>
+        </div>
+        <nav id="folders" class="folders" aria-label="Folders"></nav>
+        <button id="new-project" class="sidebar-action" type="button">+ New project</button>
+        <div id="scan-status" class="scan-status" role="status"></div>
+      </aside>
+      <main class="main">
+        <header id="main-header" class="main-header"></header>
+        <div id="board" class="board"></div>
+      </main>
+    </div>
+    <aside id="drawer" class="drawer" aria-label="Card details" hidden></aside>
+    <dialog id="form-dialog" class="form-dialog"></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

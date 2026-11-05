@@ -1,0 +1,12 @@
+{
+  "name": "agent-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local board for tracking Claude Code chats and future projects.",
+  "type": "module",
+  "engines": { "node": ">=21.2" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

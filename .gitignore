@@ -1,0 +1,3 @@
+# Your chat summaries, notes and stages. Never commit these.
+data/
+.DS_Store
