@@ -11,7 +11,9 @@ const view = {
   query: '',
   matches: null, // Map of id to snippet while searching
   openCardId: null,
-  draggingCard: null,
+  selected: new Set(),
+  selectAnchor: null, // Where a shift-click range starts
+  draggingCards: null,
   draggingColumn: null,
   addingStage: false,
   renamingColumn: null,
@@ -45,7 +47,12 @@ async function api(method, url, body) {
 }
 
 function act(promise) {
-  return promise.then(refresh).catch((err) => toast(err.message));
+  return promise.then(refresh).catch((err) => {
+    toast(err.message);
+    // The screen may already show a change the server refused, so force a redraw from its data.
+    view.boardJson = '';
+    return refresh().catch(() => {});
+  });
 }
 
 let toastTimer;
@@ -125,6 +132,10 @@ function folderByKey(key) {
 
 function render() {
   if (!view.board) return;
+  const visible = new Set(visibleCards().map((card) => card.id));
+  for (const id of view.selected) {
+    if (!visible.has(id)) view.selected.delete(id); // Never move a card you can't see.
+  }
   renderSidebar();
   renderHeader();
   renderBoard();
@@ -133,7 +144,12 @@ function render() {
 // Re-rendering replaces nodes, so don't do it under an open menu, a drag or a rename.
 function isInteracting() {
   return Boolean(
-    view.draggingCard || view.draggingColumn || view.addingStage || view.renamingColumn || document.querySelector('details.menu[open]'),
+    view.draggingCards ||
+      view.draggingColumn ||
+      view.addingStage ||
+      view.renamingColumn ||
+      document.querySelector('details.menu[open]') ||
+      document.activeElement?.closest?.('.selection-bar select'),
   );
 }
 
@@ -218,8 +234,49 @@ function renderHeader() {
   $('main-header').replaceChildren(
     el('h1', {}, heading),
     el('span', { class: 'subtle' }, subtitle),
-    el('div', { class: 'header-actions' }, actions),
+    view.selected.size ? renderSelectionBar() : el('div', { class: 'header-actions' }, actions),
   );
+}
+
+function renderSelectionBar() {
+  return el(
+    'div',
+    { class: 'selection-bar' },
+    el('span', { class: 'selection-count' }, `${view.selected.size} selected`),
+    el(
+      'select',
+      {
+        ariaLabel: 'Move selected cards to stage',
+        onchange: (e) => moveCards([...view.selected], e.target.value),
+      },
+      el('option', { value: '', disabled: true, selected: true, hidden: true }, 'Move to…'),
+      view.board.columns.map((c) => el('option', { value: c.id }, c.name)),
+    ),
+    el('button', { class: 'link-button', type: 'button', onclick: clearSelection }, 'Clear'),
+  );
+}
+
+function clearSelection() {
+  view.selected.clear();
+  view.selectAnchor = null;
+  render();
+}
+
+// Shift selects from the last card you picked to this one, within a single stage.
+function toggleSelect(card, event) {
+  const anchor = view.board.cards.find((c) => c.id === view.selectAnchor);
+  if (event.shiftKey && anchor && anchor.column === card.column) {
+    const inColumn = visibleCards().filter((c) => c.column === card.column);
+    const from = inColumn.findIndex((c) => c.id === anchor.id);
+    const to = inColumn.findIndex((c) => c.id === card.id);
+    for (const c of inColumn.slice(Math.min(from, to), Math.max(from, to) + 1)) view.selected.add(c.id);
+  } else if (view.selected.has(card.id)) {
+    view.selected.delete(card.id);
+  } else {
+    view.selected.add(card.id);
+  }
+  view.selectAnchor = card.id;
+  render();
 }
 
 function renderBoard() {
@@ -237,6 +294,7 @@ function renderBoard() {
     nodes.unshift(el('div', { class: 'empty-board' }, 'Nothing matches that search. It checks titles, your notes, folders, branches, PRs, and the messages you typed.'));
   }
   board.replaceChildren(...nodes);
+  board.classList.toggle('selecting', view.selected.size > 0);
 
   board.scrollLeft = scrollLeft;
   for (const node of board.querySelectorAll('.column')) {
@@ -259,7 +317,7 @@ function renderColumn(column, cards) {
   );
 
   node.addEventListener('dragover', (event) => {
-    if (view.draggingCard) {
+    if (view.draggingCards) {
       event.preventDefault();
       node.classList.add('drop-target');
     } else if (view.draggingColumn && view.draggingColumn !== column.id) {
@@ -272,7 +330,7 @@ function renderColumn(column, cards) {
   node.addEventListener('drop', (event) => {
     event.preventDefault();
     node.classList.remove('drop-target');
-    if (view.draggingCard) moveCard(view.draggingCard, column.id);
+    if (view.draggingCards) moveCards(view.draggingCards, column.id);
     else if (view.draggingColumn) dropColumn(view.draggingColumn, column.id);
   });
   return node;
@@ -410,18 +468,38 @@ function renderCard(card) {
   const folderName = showFolder ? folderByKey(card.folder)?.name : null;
   const snippet = view.matches?.get(card.id);
   const preview = snippet || card.preview;
+  const isSelected = view.selected.has(card.id);
   const node = el(
     'article',
     {
-      class: `card ${card.missing ? 'missing' : ''} ${view.openCardId === card.id ? 'open' : ''}`,
+      class: `card ${card.missing ? 'missing' : ''} ${view.openCardId === card.id ? 'open' : ''} ${isSelected ? 'selected' : ''}`,
       draggable: true,
       tabIndex: 0,
       dataset: { id: card.id },
-      onclick: () => openDrawer(card.id),
+      onclick: (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) toggleSelect(card, e);
+        else openDrawer(card.id);
+      },
       onkeydown: (e) => {
-        if (e.key === 'Enter' && e.target === node) openDrawer(card.id);
+        if (e.target !== node) return;
+        if (e.key === 'Enter') openDrawer(card.id);
+        if (e.key === ' ') {
+          e.preventDefault();
+          toggleSelect(card, e);
+        }
       },
     },
+    el('input', {
+      class: 'card-select',
+      type: 'checkbox',
+      checked: isSelected,
+      ariaLabel: `Select ${card.title}`,
+      title: 'Select to move several cards together',
+      onclick: (e) => {
+        e.stopPropagation();
+        toggleSelect(card, e);
+      },
+    }),
     el('div', { class: 'card-title' }, liveDot(card.live), card.title),
     preview && preview !== card.title ? el('div', { class: 'card-preview' }, preview) : null,
     card.note ? el('div', { class: 'card-note' }, card.note) : null,
@@ -429,7 +507,27 @@ function renderCard(card) {
       'div',
       { class: 'card-meta' },
       card.kind === 'idea' ? el('span', { class: 'tag' }, 'Idea') : el('span', { title: fullDate(card.lastAt) }, ago(card.lastAt)),
-      card.newActivity ? el('span', { class: 'tag attention', title: 'This chat has been used since you moved it here' }, 'New activity') : null,
+      card.newActivity
+        ? el(
+            'span',
+            { class: 'tag attention pill', title: 'This chat has been used since you moved it here' },
+            'New activity',
+            el(
+              'button',
+              {
+                class: 'pill-x',
+                type: 'button',
+                ariaLabel: `Clear New activity on ${card.title}`,
+                title: 'Clear',
+                onclick: (e) => {
+                  e.stopPropagation();
+                  dismissActivity(card);
+                },
+              },
+              '×',
+            ),
+          )
+        : null,
       card.missing ? el('span', { class: 'tag attention', title: 'Claude Code removed this transcript. Only the summary remains.' }, 'Transcript gone') : null,
       folderName ? el('span', { class: 'tag' }, folderName) : null,
       card.entrypoint === 'claude-desktop' ? el('span', {}, 'Desktop') : null,
@@ -455,26 +553,50 @@ function renderCard(card) {
   );
   node.addEventListener('dragstart', (event) => {
     event.stopPropagation();
-    view.draggingCard = card.id;
+    // Dragging a selected card takes the whole selection; any other card goes alone.
+    const ids = view.selected.has(card.id) ? [...view.selected] : [card.id];
+    view.draggingCards = ids;
     event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', card.title);
-    node.classList.add('dragging');
+    event.dataTransfer.setData('text/plain', ids.length > 1 ? `${ids.length} cards` : card.title);
+    for (const dragged of document.querySelectorAll('.card')) {
+      if (ids.includes(dragged.dataset.id)) dragged.classList.add('dragging');
+    }
+    if (ids.length > 1) {
+      const ghost = el('div', { class: 'drag-ghost' }, `${ids.length} cards`);
+      document.body.append(ghost);
+      event.dataTransfer.setDragImage(ghost, 14, 14);
+      setTimeout(() => ghost.remove());
+    }
   });
   node.addEventListener('dragend', () => {
-    view.draggingCard = null;
+    view.draggingCards = null;
     render();
   });
   return node;
 }
 
-function moveCard(id, columnId) {
-  const card = view.board.cards.find((c) => c.id === id);
-  if (!card || card.column === columnId) return;
-  card.column = columnId; // Move instantly; refresh confirms it.
-  card.newActivity = false;
-  view.draggingCard = null;
+function moveCards(ids, columnId) {
+  const moving = view.board.cards.filter((c) => ids.includes(c.id) && c.column !== columnId);
+  for (const id of ids) view.selected.delete(id);
+  view.draggingCards = null;
+  for (const card of moving) {
+    card.column = columnId; // Move instantly; refresh confirms it.
+    card.newActivity = false;
+  }
   render();
-  act(api('POST', `cards/${encodeURIComponent(id)}/move`, { column: columnId }));
+  if (!moving.length) return;
+  if (moving.length > 1) {
+    const stage = view.board.columns.find((c) => c.id === columnId)?.name;
+    toast(`Moved ${moving.length} cards to ${stage}`);
+  }
+  act(api('POST', 'cards/move', { ids: moving.map((c) => c.id), column: columnId }));
+}
+
+function dismissActivity(card) {
+  card.newActivity = false;
+  render();
+  if (view.openCardId === card.id) $('drawer').querySelector('.activity-notice')?.remove();
+  act(api('POST', `cards/${encodeURIComponent(card.id)}/dismiss-activity`, {}));
 }
 
 // Drawer
@@ -544,7 +666,7 @@ function renderDrawer(card) {
     {
       ariaLabel: 'Stage',
       onchange: (e) => {
-        moveCard(card.id, e.target.value);
+        moveCards([card.id], e.target.value);
       },
     },
     view.board.columns.map((c) => el('option', { value: c.id, selected: c.id === card.column }, c.name)),
@@ -573,7 +695,7 @@ function renderDrawer(card) {
         : null,
     ),
     card.missing ? el('div', { class: 'notice' }, 'Claude Code has removed this transcript, so it can no longer be resumed. This summary is all that remains.') : null,
-    card.newActivity ? el('div', { class: 'notice' }, 'This chat has been used since you moved it to this stage.') : null,
+    card.newActivity ? el('div', { class: 'notice activity-notice' }, 'This chat has been used since you moved it to this stage.') : null,
     section('Your note', el('textarea', { class: 'note', ariaLabel: 'Your note', value: card.note ?? '', placeholder: 'What to do next, why this is parked…', oninput: noteSave.oninput, onblur: noteSave.onblur })),
     isIdea ? ideaFolderSection(card) : null,
     isIdea ? null : textSection(`Where you left off${card.awayAt ? ` (${ago(card.awayAt)} ago)` : ''}`, card.awaySummary),
@@ -832,6 +954,7 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key !== 'Escape' || $('form-dialog').open) return;
   if (view.openCardId) closeDrawer();
+  else if (view.selected.size) clearSelection();
   else if (event.target === $('search') || view.query) {
     $('search').value = '';
     onSearchInput('');

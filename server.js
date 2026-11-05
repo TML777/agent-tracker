@@ -113,9 +113,13 @@ async function route(req, res, url) {
 
   const body = method === 'DELETE' && !req.headers['content-type'] ? {} : await readBody(req);
 
+  if (resource === 'cards' && id === 'move' && method === 'POST') {
+    store.moveCards(body.ids, body.column);
+    return send(res, 200, { ok: true });
+  }
   if (resource === 'cards' && id) {
     const isIdea = Boolean(store.state.ideas[id]);
-    if (method === 'POST' && parts[3] === 'move') store.moveCard(id, body.column);
+    if (method === 'POST' && parts[3] === 'dismiss-activity') store.dismissActivity(id);
     else if (method === 'PATCH' && isIdea) store.updateIdea(id, body);
     else if (method === 'PATCH') store.updateChat(id, body);
     else if (method === 'DELETE' && isIdea) store.deleteIdea(id);

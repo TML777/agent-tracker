@@ -443,6 +443,7 @@ button {
 .card {
   position: relative;
   flex: none;
+  user-select: none; /* Shift-click selects cards, not text */
   padding: 8px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -462,12 +463,74 @@ button {
   opacity: 0.45;
 }
 
+.card.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.card-select {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.card:hover .card-select,
+.card:focus-within .card-select,
+.card.selected .card-select,
+.board.selecting .card-select {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .card-select {
+    opacity: 1;
+  }
+}
+
+.drag-ghost {
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  padding: 5px 10px;
+  background: var(--accent);
+  border-radius: 6px;
+  color: var(--surface);
+  font-weight: 600;
+}
+
+.selection-bar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.selection-count {
+  font-weight: 600;
+}
+
+.selection-bar select {
+  padding: 2px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  font-size: 12px;
+}
+
 .card.missing {
   border-style: dashed;
 }
 
 .card-title {
   display: -webkit-box;
+  padding-right: 18px; /* Keeps the title clear of the checkbox */
   overflow: hidden;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -553,6 +616,43 @@ button {
   background: var(--attention-soft);
   color: var(--attention);
   font-weight: 550;
+}
+
+/* Room for the x is always reserved, so the pill doesn't shift under the pointer. */
+.pill {
+  position: relative;
+  padding-right: 17px;
+}
+
+.pill-x {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  color: inherit;
+  font-size: 13px;
+  line-height: 13px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-50%);
+}
+
+.pill:hover .pill-x,
+.pill-x:focus-visible {
+  opacity: 1;
+}
+
+.pill-x:hover {
+  background: var(--attention);
+  color: var(--attention-soft);
+}
+
+@media (hover: none) {
+  .pill-x {
+    opacity: 1;
+  }
 }
 
 .card-copy {

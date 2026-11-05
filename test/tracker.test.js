@@ -98,7 +98,7 @@ test('keeps stage, note and summary when Claude Code prunes the transcript', asy
   const t = setup();
   t.write([user('old work', Date.now())]);
   await t.scan();
-  t.store.moveCard(ID, 'done');
+  t.store.moveCards([ID], 'done');
   t.store.updateChat(ID, { note: 'shipped' });
   fs.rmSync(t.transcript);
   await t.scan();
@@ -127,7 +127,7 @@ test('flags new activity on a parked chat without moving it', async () => {
   const t = setup();
   t.write([user('work', Date.now() - 60_000)]);
   await t.scan();
-  t.store.moveCard(ID, 'done');
+  t.store.moveCards([ID], 'done');
   assert.equal(buildBoard(t.store, t.scanner).cards[0].newActivity, false);
 
   t.write([user('back at it', Date.now() + 60_000)]);
@@ -136,8 +136,45 @@ test('flags new activity on a parked chat without moving it', async () => {
   assert.equal(card.newActivity, true);
   assert.equal(card.column, 'done');
 
-  t.store.moveCard(ID, 'active');
+  t.store.moveCards([ID], 'active');
   assert.equal(buildBoard(t.store, t.scanner).cards[0].newActivity, false);
+});
+
+test('dismissing new activity leaves the card in place, and later activity brings it back', async () => {
+  const t = setup();
+  t.write([user('work', Date.now() - 60_000)]);
+  await t.scan();
+  t.store.moveCards([ID], 'done');
+  t.write([user('back at it', Date.now() + 60_000)]);
+  await t.scan();
+  assert.equal(buildBoard(t.store, t.scanner).cards[0].newActivity, true);
+
+  t.store.dismissActivity(ID, Date.now() + 90_000);
+  let [card] = buildBoard(t.store, t.scanner).cards;
+  assert.equal(card.newActivity, false);
+  assert.equal(card.column, 'done');
+
+  t.write([user('and again', Date.now() + 120_000)]);
+  await t.scan();
+  [card] = buildBoard(t.store, t.scanner).cards;
+  assert.equal(card.newActivity, true);
+});
+
+test('moves several cards together, or none if any is unknown', async () => {
+  const t = setup();
+  const second = '33333333-3333-3333-3333-333333333333';
+  t.write([user('one', Date.now())]);
+  fs.writeFileSync(path.join(t.projectDir, `${second}.jsonl`), `${JSON.stringify(user('two', Date.now()))}\n`);
+  await t.scan();
+  const idea = t.store.createIdea({ title: 'Later', folder: '/work/my app', column: 'future' });
+
+  t.store.moveCards([ID, second, idea.id], 'done');
+  for (const card of buildBoard(t.store, t.scanner).cards) assert.equal(card.column, 'done');
+
+  assert.throws(() => t.store.moveCards([ID, 'nope'], 'paused'), /No such card/);
+  assert.throws(() => t.store.moveCards('not a list', 'paused'), /Expected a list/);
+  assert.throws(() => t.store.moveCards([ID], 'no-such-stage'), /No such stage/);
+  assert.equal(t.store.state.chats[ID].column, 'done');
 });
 
 test('deleting a stage moves its cards, and the default follows', async () => {

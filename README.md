@@ -35,7 +35,8 @@ Your stages, notes and ideas live in `data/state.json`. Back that file up if you
 
 - **New chats** land in the stage marked "new chats". Change that from any stage's `⋯` menu.
 - **First run only:** chats idle for more than 7 days start in Paused, so Active isn't a wall of old work.
-- **Stages are yours.** A chat never moves on its own. If you use a parked chat again, it gets a "New activity" tag instead.
+- **Stages are yours.** A chat never moves on its own. If you use a parked chat again, it gets a "New activity" tag instead. Hover over the tag and click its × to clear it, or move the card. It comes back if the chat is used again.
+- **Moving several cards:** tick the checkbox that appears when you hover over a card, or `⌘`-click it. `Shift`-click selects a range within a stage. Drag any selected card to move them all, or use "Move to…" at the top. `Esc` clears the selection.
 - **Pruned transcripts:** when Claude Code deletes an old transcript, the card stays with its last summary and a "Transcript gone" tag, but can't be resumed.
 
 ## Search
