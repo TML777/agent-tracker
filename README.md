@@ -17,7 +17,7 @@ kill $(lsof -tiTCP:47823 -sTCP:LISTEN)
 The app has this folder's path built in. If you move the folder, rebuild it:
 
 ```bash
-osacompile -o ~/Applications/"Agent Tracker.app" -e "do shell script quoted form of \"$PWD/bin/open.sh\""
+bin/build-shortcut.sh
 ```
 
 ## What it touches
