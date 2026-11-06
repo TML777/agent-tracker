@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { buildBoard, chatCard, search } from './lib/board.js';
+import { buildBoard, buildCalendar, chatCard, search, usageDetail } from './lib/board.js';
 import { readSubagents, Scanner } from './lib/scanner.js';
 import { HttpError, Store } from './lib/store.js';
 
@@ -18,8 +18,12 @@ const RESCAN_MS = 8000;
 
 const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
+  '/calendar': ['index.html', 'text/html; charset=utf-8'], // A tab of the same page, so a reload stays on it
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/calendar.js': ['calendar.js', 'text/javascript; charset=utf-8'],
+  '/shared.js': ['shared.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/calendar.css': ['calendar.css', 'text/css; charset=utf-8'],
 };
 
 const store = new Store(path.join(DATA_DIR, 'state.json'));
@@ -30,6 +34,7 @@ const scanner = new Scanner({
 });
 
 function placeChats() {
+  store.rememberAccount(scanner.currentAccount);
   store.placeNewChats(scanner.visibleSessions(), { scanComplete: scanner.complete });
 }
 
@@ -96,6 +101,7 @@ async function cardDetail(id) {
     cwdFirst: summary.cwdFirst,
     cwdLast: summary.cwdLast,
     prs: summary.prs,
+    usage: usageDetail(summary, store, scanner),
     subagentList: await readSubagents(summary.file, id),
   };
 }
@@ -106,6 +112,7 @@ async function route(req, res, url) {
   const method = req.method;
 
   if (method === 'GET' && resource === 'board') return send(res, 200, buildBoard(store, scanner));
+  if (method === 'GET' && resource === 'calendar') return send(res, 200, buildCalendar(store, scanner));
   if (method === 'GET' && resource === 'search') {
     return send(res, 200, { results: search(url.searchParams.get('q') ?? '', store, scanner) });
   }

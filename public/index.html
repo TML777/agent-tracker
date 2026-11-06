@@ -10,17 +10,24 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232f6f62'/%3E%3Cpath d='M4 4v8M8 4v5M12 4v3' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/calendar.css" />
   </head>
   <body>
-    <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true">
+          <rect width="16" height="16" rx="3" fill="#2f6f62"></rect>
+          <path d="M4 4v8M8 4v5M12 4v3" stroke="white" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+        Agent Tracker
+      </div>
+      <nav class="tabs" aria-label="Main">
+        <a class="tab" href="/" data-page="board">Board</a>
+        <a class="tab" href="/calendar" data-page="calendar">Calendar</a>
+      </nav>
+    </header>
+    <div id="board-view" class="app">
       <aside class="sidebar">
-        <div class="brand">
-          <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true">
-            <rect width="16" height="16" rx="3" fill="#2f6f62"></rect>
-            <path d="M4 4v8M8 4v5M12 4v3" stroke="white" stroke-width="2" stroke-linecap="round"></path>
-          </svg>
-          Agent Tracker
-        </div>
         <div class="search">
           <input id="search" type="search" placeholder="Search chats and projects" aria-label="Search chats and projects" autocomplete="off" spellcheck="false" />
           <kbd aria-hidden="true">/</kbd>
@@ -33,6 +40,22 @@
         <header id="main-header" class="main-header"></header>
         <div id="board" class="board"></div>
       </main>
+    </div>
+    <div id="calendar-view" class="calendar-page" hidden>
+      <main class="calendar-main">
+        <header id="calendar-header" class="calendar-header"></header>
+        <div id="calendar-grid" class="calendar-scroll"></div>
+        <div class="calendar-legend" aria-hidden="true">
+          Fewer tokens
+          <span class="heat-swatch heat-0"></span>
+          <span class="heat-swatch heat-1"></span>
+          <span class="heat-swatch heat-2"></span>
+          <span class="heat-swatch heat-3"></span>
+          <span class="heat-swatch heat-4"></span>
+          More tokens
+        </div>
+      </main>
+      <aside id="calendar-stats" class="calendar-stats" aria-label="Statistics"></aside>
     </div>
     <aside id="drawer" class="drawer" aria-label="Card details" hidden></aside>
     <dialog id="form-dialog" class="form-dialog"></dialog>

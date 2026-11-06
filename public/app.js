@@ -1,9 +1,13 @@
+import { startCalendar, stopCalendar } from './calendar.js';
+import { api, el, formatTokens, plural } from './shared.js';
+
 const POLL_MS = 4000;
 const SEARCH_DEBOUNCE_MS = 120;
 
 const $ = (id) => document.getElementById(id);
 
 const view = {
+  page: 'board',
   board: null,
   boardJson: '',
   folder: readHashFolder(), // null means all folders
@@ -18,33 +22,6 @@ const view = {
   addingStage: false,
   renamingColumn: null,
 };
-
-// All text goes through textContent, so nothing from a transcript can inject markup.
-function el(tag, props = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(props)) {
-    if (value === undefined || value === null || value === false) continue;
-    if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
-    else if (key === 'class') node.className = value;
-    else if (key === 'dataset') Object.assign(node.dataset, value);
-    else if (key in node && key !== 'list') node[key] = value;
-    else node.setAttribute(key, value === true ? '' : value);
-  }
-  node.append(...children.flat().filter((c) => c !== null && c !== undefined && c !== false));
-  return node;
-}
-
-async function api(method, url, body) {
-  const options = { method };
-  if (body !== undefined) {
-    options.headers = { 'Content-Type': 'application/json' };
-    options.body = JSON.stringify(body);
-  }
-  const res = await fetch(`/api/${url}`, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  return data;
-}
 
 function act(promise) {
   return promise.then(refresh).catch((err) => {
@@ -87,10 +64,6 @@ function ago(ms) {
 
 function fullDate(ms) {
   return ms ? new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
-}
-
-function plural(n, word) {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
 function readHashFolder() {
@@ -201,15 +174,30 @@ function renderSidebar() {
   $('folders').scrollTop = scroll;
 
   const { scan } = board;
-  $('scan-status').textContent = scan.complete || !scan.total ? (scan.complete ? plural(board.cards.filter((c) => c.kind === 'chat').length, 'chat') : '') : `Reading transcripts: ${scan.done} of ${scan.total}`;
+  $('scan-status').replaceChildren(
+    scan.complete || !scan.total ? (scan.complete ? plural(board.cards.filter((c) => c.kind === 'chat').length, 'chat') : '') : `Reading transcripts: ${scan.done} of ${scan.total}`,
+    ...(scan.complete
+      ? board.accounts.map((account) =>
+          el(
+            'div',
+            { class: 'account-usage', title: `${account.label}: ${plural(account.chats, 'chat')}, ${formatTokens(account.tokens)} tokens` },
+            el('span', { class: 'account-name' }, account.label),
+            el('span', {}, formatTokens(account.tokens)),
+          ),
+        )
+      : []),
+  );
 }
 
 function renderHeader() {
   const { matches, folder, query } = view;
   const current = folder ? folderByKey(folder) : null;
-  const shown = visibleCards().length;
+  const cards = visibleCards();
+  const shown = cards.length;
+  const tokens = cards.reduce((sum, card) => sum + (card.tokens ?? 0), 0);
   const heading = matches ? `${plural(shown, 'match').replace('matchs', 'matches')} for “${query}”` : (current?.name ?? 'All folders');
-  const subtitle = matches ? (current ? `in ${current.name}` : 'across all folders') : (current?.path ?? plural(shown, 'card'));
+  const where = matches ? (current ? `in ${current.name}` : 'across all folders') : (current?.path ?? plural(shown, 'card'));
+  const subtitle = tokens ? `${where} · ${formatTokens(tokens)} tokens` : where;
 
   const actions = [];
   if (current && !matches) {
@@ -279,10 +267,20 @@ function toggleSelect(card, event) {
   render();
 }
 
+function readColumnScroll() {
+  return new Map([...$('board').querySelectorAll('.column')].map((c) => [c.dataset.id, c.querySelector('.cards').scrollTop]));
+}
+
+function applyColumnScroll(columnScroll) {
+  for (const node of $('board').querySelectorAll('.column')) {
+    node.querySelector('.cards').scrollTop = columnScroll.get(node.dataset.id) ?? 0;
+  }
+}
+
 function renderBoard() {
   const board = $('board');
   const scrollLeft = board.scrollLeft;
-  const columnScroll = new Map([...board.querySelectorAll('.column')].map((c) => [c.dataset.id, c.querySelector('.cards').scrollTop]));
+  const columnScroll = readColumnScroll();
   const focusedCard = document.activeElement?.closest?.('.card')?.dataset.id;
 
   const cards = visibleCards();
@@ -297,9 +295,7 @@ function renderBoard() {
   board.classList.toggle('selecting', view.selected.size > 0);
 
   board.scrollLeft = view.matches && !cards.length ? 0 : scrollLeft; // Keeps the "no matches" message in view
-  for (const node of board.querySelectorAll('.column')) {
-    node.querySelector('.cards').scrollTop = columnScroll.get(node.dataset.id) ?? 0;
-  }
+  applyColumnScroll(columnScroll);
   if (focusedCard) board.querySelector(`.card[data-id="${CSS.escape(focusedCard)}"]`)?.focus({ preventScroll: true });
 }
 
@@ -534,6 +530,7 @@ function renderCard(card) {
       card.branch ? el('span', { class: 'card-branch', title: card.branch }, card.branch) : null,
       card.prCount ? el('span', {}, plural(card.prCount, 'PR')) : null,
       card.subagents ? el('span', {}, plural(card.subagents, 'subagent')) : null,
+      card.tokens ? el('span', { title: 'Input, output and cache writes, including subagents' }, `${formatTokens(card.tokens)} tokens`) : null,
     ),
     card.resume && !card.missing
       ? el(
@@ -704,6 +701,7 @@ function renderDrawer(card) {
     isIdea || card.firstPrompt === card.lastPrompt ? null : textSection('How it started', card.firstPrompt),
     card.prs?.length ? section(plural(card.prs.length, 'pull request'), ...card.prs.map(prLine)) : null,
     card.subagentList?.length ? subagentSection(card.subagentList) : null,
+    isIdea ? null : usageSection(card.usage),
     isIdea ? null : factsSection(card),
   ];
   $('drawer').replaceChildren(...parts.filter(Boolean));
@@ -747,6 +745,29 @@ function subagentSection(list) {
           agent.description ? el('div', {}, agent.description) : null,
         ),
       ),
+    ),
+  );
+}
+
+function usageSection(usage) {
+  if (!usage?.tokens) return usage ? section('Usage', el('p', {}, `No usage recorded. Account: ${usage.account}`)) : null;
+  const count = (n) => n.toLocaleString();
+  const rows = [
+    ['Account', usage.account],
+    ['Tokens', `${formatTokens(usage.tokens)} (${count(usage.tokens)})`],
+    ['Input', count(usage.input)],
+    ['Output', count(usage.output)],
+    ['Cache writes', count(usage.cacheWrite)],
+    ['From subagents', usage.subagentTokens ? count(usage.subagentTokens) : null],
+    ['Cache reads', `${count(usage.cacheRead)}, not in the total`],
+    ['API calls', count(usage.calls)],
+  ].filter(([, value]) => value);
+  return section(
+    'Usage',
+    el(
+      'dl',
+      { class: 'facts' },
+      rows.flatMap(([label, value]) => [el('dt', {}, label), el('dd', {}, value)]),
     ),
   );
 }
@@ -897,6 +918,7 @@ function deleteColumnForm(column) {
 // Data flow
 
 async function refresh() {
+  if (view.page !== 'board') return; // Hidden elements can't keep their scroll position.
   const data = await api('GET', 'board');
   const json = JSON.stringify(data);
   if (json === view.boardJson && !view.query) return;
@@ -944,7 +966,56 @@ function onSearchInput(value) {
 $('search').addEventListener('input', (e) => onSearchInput(e.target.value));
 $('new-project').addEventListener('click', newProjectForm);
 
+// Tabs
+
+function pageFromUrl() {
+  return location.pathname === '/calendar' ? 'calendar' : 'board';
+}
+
+let boardScroll = null;
+
+function showPage(page, { updateUrl = true } = {}) {
+  const leavingBoard = view.page === 'board' && page !== 'board';
+  if (leavingBoard) {
+    if (view.openCardId) closeDrawer();
+    boardScroll = { left: $('board').scrollLeft, columns: readColumnScroll() };
+  }
+  view.page = page;
+  $('board-view').hidden = page !== 'board';
+  $('calendar-view').hidden = page !== 'calendar';
+  for (const tab of document.querySelectorAll('.tab')) {
+    if (tab.dataset.page === page) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  }
+  if (updateUrl) {
+    const boardUrl = view.folder ? `/#${encodeURIComponent(view.folder)}` : '/';
+    history.pushState(null, '', page === 'calendar' ? '/calendar' : boardUrl);
+  }
+  if (page === 'calendar') {
+    startCalendar();
+    return;
+  }
+  stopCalendar();
+  if (boardScroll) {
+    $('board').scrollLeft = boardScroll.left;
+    applyColumnScroll(boardScroll.columns);
+    boardScroll = null;
+  }
+  refresh().catch((err) => toast(err.message));
+}
+
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    if (tab.dataset.page !== view.page) showPage(tab.dataset.page);
+  });
+}
+
+window.addEventListener('popstate', () => showPage(pageFromUrl(), { updateUrl: false }));
+
 document.addEventListener('keydown', (event) => {
+  if (view.page !== 'board') return; // Search and its keys belong to the board.
   const typing = event.target.closest?.('input, textarea, select');
   if ((event.key === '/' && !typing) || (event.key === 'k' && event.metaKey)) {
     event.preventDefault();
@@ -970,5 +1041,5 @@ document.addEventListener('click', (event) => {
 
 window.addEventListener('hashchange', () => selectFolder(readHashFolder()));
 
-refresh().catch((err) => toast(err.message));
+showPage(pageFromUrl(), { updateUrl: false });
 setInterval(() => refresh().catch(() => toast('Lost connection to the tracker server')), POLL_MS);

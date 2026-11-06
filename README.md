@@ -31,6 +31,20 @@ It only reads Claude Code's data and never writes to it:
 Your stages, notes and ideas live in `data/state.json`. Back that file up if you care about it.
 `data/scan-cache.json` is disposable and rebuilds itself. Renaming a chat here only changes its name in the tracker.
 
+It also reads the account fields from `~/.claude.json`, to put an email on the signed-in account. Nothing else from that file is read or kept.
+
+## Usage
+
+Each chat shows its token usage, with subagents included. The header totals whatever is on screen, and the sidebar totals each account on this Mac, whichever one is signed in now.
+
+The **Calendar** tab shows the last 5 weeks, Monday to Sunday, in this computer's time zone. Days are colored by rank among active days, so one huge day doesn't wash out the rest. Click a day to see which chats ran. The statistics on the right cover the whole 5 weeks.
+
+- **Tokens** means input, output and cache writes. Cache reads are listed separately in a chat's details: they're the same context reused every turn, and they run hundreds of times larger.
+- **Each message counts once.** Claude Code repeats usage across transcript lines and copies history into forked chats, so totals are keyed by message id.
+- **Small undercount:** background calls that never reach a transcript, such as title generation, aren't included.
+- **Accounts:** older transcripts don't say which account ran them, so those appear as "Account not recorded". An account shows its email once it has been signed in while the tracker is running.
+- **No dollar amounts:** Claude Code's `cost-state` totals cover a whole process, which can span several chats, so they can't be split per chat.
+
 ## How cards behave
 
 - **New chats** land in the stage marked "new chats". Change that from any stage's `⋯` menu.
