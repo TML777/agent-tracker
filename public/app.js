@@ -296,11 +296,11 @@ function renderBoard() {
   board.replaceChildren(...nodes);
   board.classList.toggle('selecting', view.selected.size > 0);
 
-  board.scrollLeft = scrollLeft;
+  board.scrollLeft = view.matches && !cards.length ? 0 : scrollLeft; // Keeps the "no matches" message in view
   for (const node of board.querySelectorAll('.column')) {
     node.querySelector('.cards').scrollTop = columnScroll.get(node.dataset.id) ?? 0;
   }
-  if (focusedCard) board.querySelector(`.card[data-id="${CSS.escape(focusedCard)}"]`)?.focus();
+  if (focusedCard) board.querySelector(`.card[data-id="${CSS.escape(focusedCard)}"]`)?.focus({ preventScroll: true });
 }
 
 function renderColumn(column, cards) {
