@@ -20,7 +20,15 @@ for size in 16 32 128 256 512; do
 done
 iconutil -c icns "$WORK/app.iconset" -o "$APP/Contents/Resources/applet.icns"
 
+# osacompile also adds its default icon as a compiled asset, which macOS shows instead of
+# applet.icns. Remove it so our icon is the only one.
+rm -f "$APP/Contents/Resources/Assets.car"
+/usr/libexec/PlistBuddy -c 'Delete :CFBundleIconName' "$APP/Contents/Info.plist" 2>/dev/null || true
+
 # Changing the icon invalidates the app's signature, so sign it again.
 codesign --force --deep -s - "$APP" 2>/dev/null
+
+# Finder and the Dock cache icons, so tell macOS the app changed.
 touch "$APP"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 echo "Built $APP"
