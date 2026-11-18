@@ -192,6 +192,97 @@ body {
   text-align: left;
 }
 
+.folder-row {
+  position: relative;
+}
+
+/* Room for the x is kept clear of the count, which steps aside while the x shows. */
+.folder-hide {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 20px;
+  opacity: 0;
+}
+
+.folder-row:hover .folder-hide,
+.folder-hide:focus-visible {
+  opacity: 1;
+}
+
+.folder-row:hover .folder-count {
+  visibility: hidden;
+}
+
+.folder-hide:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+@media (hover: none) {
+  .folder-hide {
+    opacity: 1;
+  }
+
+  .folder-row .folder-count {
+    margin-right: 26px;
+  }
+}
+
+.hidden-folders {
+  padding: 4px 0 0;
+}
+
+.hidden-toggle {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+}
+
+.hidden-toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.hidden-list {
+  max-height: 160px;
+  padding: 0;
+  margin: 2px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.hidden-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0 2px 20px;
+  font-size: 12px;
+}
+
+.hidden-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hidden-count {
+  flex: none;
+  color: var(--muted);
+}
+
+.hidden-list .link-button {
+  margin-left: auto;
+}
+
 .folder:hover {
   background: var(--surface-2);
 }

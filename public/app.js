@@ -21,6 +21,7 @@ const view = {
   draggingColumn: null,
   addingStage: false,
   renamingColumn: null,
+  showHidden: false,
 };
 
 function act(promise) {
@@ -114,10 +115,17 @@ function render() {
   renderBoard();
 }
 
-// Re-rendering replaces nodes, so don't do it under an open menu, a drag or a rename.
+// A redraw between pressing and releasing the mouse would swallow the click.
+let pressing = false;
+document.addEventListener('pointerdown', () => (pressing = true));
+document.addEventListener('pointerup', () => (pressing = false));
+document.addEventListener('pointercancel', () => (pressing = false));
+
+// Re-rendering replaces nodes, so don't do it under an open menu, a drag, a rename or a click.
 function isInteracting() {
   return Boolean(
-    view.draggingCards ||
+    pressing ||
+      view.draggingCards ||
       view.draggingColumn ||
       view.addingStage ||
       view.renamingColumn ||
@@ -127,7 +135,7 @@ function isInteracting() {
 }
 
 function folderButton(key, name, pathText, count, live) {
-  return el(
+  const button = el(
     'button',
     {
       class: `folder ${view.folder === key ? 'selected' : ''}`,
@@ -139,6 +147,68 @@ function folderButton(key, name, pathText, count, live) {
     el('span', { class: 'folder-name' }, name),
     el('span', { class: 'folder-count' }, live ? liveDot('open') : null, String(count)),
     pathText ? el('span', { class: 'folder-path' }, pathText) : null,
+  );
+  if (key === null) return button; // "All folders" can't be closed.
+  return el(
+    'div',
+    { class: 'folder-row' },
+    button,
+    el(
+      'button',
+      {
+        class: 'folder-hide',
+        type: 'button',
+        ariaLabel: `Close ${name}`,
+        title: 'Close this folder. Its chats leave the board until you show it again.',
+        onclick: () => setFolderHidden(key, name, true),
+      },
+      '×',
+    ),
+  );
+}
+
+function setFolderHidden(key, name, hidden) {
+  if (hidden && view.folder === key) selectFolder(null);
+  act(api('PATCH', 'folders', { key, hidden }));
+  toast(hidden ? `Closed ${name}. Find it under Hidden folders.` : `${name} is back`);
+}
+
+function renderHiddenFolders() {
+  const hidden = view.board.hiddenFolders ?? [];
+  if (!hidden.length) {
+    view.showHidden = false;
+    $('hidden-folders').replaceChildren();
+    return;
+  }
+  $('hidden-folders').replaceChildren(
+    el(
+      'button',
+      {
+        class: 'hidden-toggle',
+        type: 'button',
+        ariaExpanded: view.showHidden ? 'true' : 'false',
+        onclick: () => {
+          view.showHidden = !view.showHidden;
+          renderHiddenFolders();
+        },
+      },
+      `${view.showHidden ? '▾' : '▸'} ${plural(hidden.length, 'hidden folder')}`,
+    ),
+    view.showHidden
+      ? el(
+          'ul',
+          { class: 'hidden-list' },
+          hidden.map((folder) =>
+            el(
+              'li',
+              {},
+              el('span', { class: 'hidden-name', title: folder.key }, folder.name),
+              el('span', { class: 'hidden-count' }, plural(folder.count, 'card')),
+              el('button', { class: 'link-button', type: 'button', onclick: () => setFolderHidden(folder.key, folder.name, false) }, 'Show'),
+            ),
+          ),
+        )
+      : null,
   );
 }
 
@@ -172,6 +242,7 @@ function renderSidebar() {
     ...folders.map((f) => folderButton(f.key, f.name, f.path, counts.get(f.key) ?? 0, f.live)),
   );
   $('folders').scrollTop = scroll;
+  renderHiddenFolders();
 
   const { scan } = board;
   $('scan-status').replaceChildren(

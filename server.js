@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { buildBoard, buildCalendar, chatCard, search, usageDetail } from './lib/board.js';
+import { buildBoard, buildCalendar, chatCard, chatCountIn, search, usageDetail } from './lib/board.js';
 import { readSubagents, Scanner } from './lib/scanner.js';
 import { HttpError, Store } from './lib/store.js';
 
@@ -112,7 +112,10 @@ async function route(req, res, url) {
   const method = req.method;
 
   if (method === 'GET' && resource === 'board') return send(res, 200, buildBoard(store, scanner));
-  if (method === 'GET' && resource === 'calendar') return send(res, 200, buildCalendar(store, scanner));
+  if (method === 'GET' && resource === 'calendar') {
+    const { mode, month, range } = Object.fromEntries(url.searchParams);
+    return send(res, 200, buildCalendar(store, scanner, new Date(), { mode, month, range }));
+  }
   if (method === 'GET' && resource === 'search') {
     return send(res, 200, { results: search(url.searchParams.get('q') ?? '', store, scanner) });
   }
@@ -149,10 +152,11 @@ async function route(req, res, url) {
   }
   if (resource === 'folders') {
     if (method === 'POST') return send(res, 201, { key: store.createFolder(body) });
-    if (method === 'PATCH') store.renameFolder(body.key, body.name);
-    else if (method === 'DELETE') {
-      const chats = buildBoard(store, scanner).cards.filter((c) => c.kind === 'chat' && c.folder === body.key).length;
-      store.deleteFolder(body.key, chats);
+    if (method === 'PATCH') {
+      if (body.hidden !== undefined) store.setFolderHidden(body.key, body.hidden);
+      if (body.name !== undefined) store.renameFolder(body.key, body.name);
+    } else if (method === 'DELETE') {
+      store.deleteFolder(body.key, chatCountIn(store, scanner, body.key));
     } else throw new HttpError(405, 'Method not allowed');
     return send(res, 200, { ok: true });
   }

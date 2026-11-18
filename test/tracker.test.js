@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildBoard, buildCalendar, resumeCommand, search, usageDetail } from '../lib/board.js';
+import { buildBoard, buildCalendar, chatCountIn, resumeCommand, search, usageDetail } from '../lib/board.js';
 import { computeUsage, emptySummary, Scanner } from '../lib/scanner.js';
 import { Store } from '../lib/store.js';
 
@@ -337,6 +337,122 @@ test('the calendar buckets tokens by day and ignores days outside the five weeks
   assert.deepEqual(stats.busiest, { date: '2026-11-05', tokens: 120 });
   assert.equal(weeks[4].tokens, 180);
   assert.equal(stats.folders[0].tokens, 180);
+});
+
+test('the statistics range covers 3 days, 7 days, the 5 calendar weeks, or all time', async () => {
+  const t = setup();
+  const now = new Date(2026, 10, 6, 15, 0); // A Friday
+  const at = (month, day) => new Date(2026, month, day, 12).getTime();
+  t.write([
+    user('go', at(8, 1)),
+    reply('sept', USAGE, at(8, 1)), // All time only
+    reply('oct5', USAGE, at(9, 5)), // First day of the 5 calendar weeks
+    reply('oct4', USAGE, at(9, 4)), // The day before them
+    reply('oct30', USAGE, at(9, 30)), // Within 5 weeks only
+    reply('oct31', USAGE, at(9, 31)), // Exactly 6 days ago: last day of the 7
+    reply('oct30b', USAGE, at(9, 30)),
+    reply('nov3', USAGE, at(10, 3)), // Before the 3 days
+    reply('nov4', USAGE, at(10, 4)), // Exactly 2 days ago: first of the 3
+    reply('nov6', USAGE, at(10, 6)),
+    reply('nov6b', USAGE, at(10, 6)),
+  ]);
+  await t.scan();
+
+  const stats = (range) => buildCalendar(t.store, t.scanner, now, { range }).stats;
+  assert.equal(stats('3d').tokens, 180); // nov4, and two on nov6
+  assert.equal(stats('3d').from, '2026-11-04');
+  assert.equal(stats('3d').elapsedDays, 3);
+  assert.equal(stats('7d').tokens, 300); // Adds nov3 and oct31
+  assert.equal(stats('7d').from, '2026-10-31');
+  assert.equal(stats('7d').elapsedDays, 7);
+  assert.equal(stats('5w').tokens, 480); // Adds oct5, and two on oct30
+  assert.equal(stats('5w').from, '2026-10-05');
+  assert.equal(stats('5w').elapsedDays, 33);
+  assert.equal(stats('all').tokens, 600); // Adds oct4 and sept
+  assert.equal(stats('all').from, '2026-09-01');
+  assert.equal(stats('all').elapsedDays, 67);
+  assert.deepEqual(stats('all').busiest, { date: '2026-10-30', tokens: 120 });
+  assert.equal(stats('nonsense').range, '5w');
+});
+
+test('the month view shows one month in full weeks and lists every month since the first use', async () => {
+  const t = setup();
+  const now = new Date(2026, 10, 6, 15, 0);
+  const at = (month, day) => new Date(2026, month, day, 12).getTime();
+  t.write([
+    user('go', at(7, 20)),
+    reply('aug', USAGE, at(7, 20)),
+    reply('oct31', USAGE, at(9, 31)), // Shown dimmed, uncounted, in November's first week
+    reply('nov1', USAGE, at(10, 1)),
+  ]);
+  await t.scan();
+
+  const october = buildCalendar(t.store, t.scanner, now, { mode: 'month', month: '2026-10' });
+  assert.deepEqual(october.months.map((m) => [m.key, m.tokens]), [['2026-11', 60], ['2026-10', 60], ['2026-09', 0], ['2026-08', 60]]);
+  const days = october.weeks.flatMap((w) => w.days);
+  assert.equal(october.weeks.length, 5);
+  assert.equal(days[0].date, '2026-09-28');
+  assert.equal(days.at(-1).date, '2026-11-01');
+  assert.equal(days.find((d) => d.date === '2026-09-28').outside, true);
+  assert.equal(days.find((d) => d.date === '2026-10-31').tokens, 60);
+  assert.equal(days.find((d) => d.date === '2026-11-01').outside, true);
+  assert.equal(days.find((d) => d.date === '2026-11-01').tokens, 0);
+  assert.equal(october.weeks.at(-1).tokens, 60);
+
+  // A month starting on a Sunday needs six rows.
+  const november = buildCalendar(t.store, t.scanner, now, { mode: 'month', month: '2026-11' });
+  assert.equal(november.weeks.length, 6);
+  assert.equal(november.weeks[0].days.at(-1).date, '2026-11-01');
+  assert.equal(november.weeks[0].days[0].outside, true);
+
+  // An unknown month falls back to this one, and the statistics range is independent of it.
+  assert.equal(buildCalendar(t.store, t.scanner, now, { mode: 'month', month: 'bad' }).month, '2026-11');
+  const both = buildCalendar(t.store, t.scanner, now, { mode: 'month', month: '2026-08', range: 'all' });
+  assert.equal(both.weeks.flatMap((w) => w.days).find((d) => d.date === '2026-08-20').tokens, 60);
+  assert.equal(both.stats.tokens, 180);
+});
+
+test('closing a folder hides its chats and ideas everywhere on the board, but not on the calendar', async () => {
+  const t = setup();
+  const now = Date.now();
+  const otherId = '77777777-7777-7777-7777-777777777777';
+  const otherDir = path.join(t.root, 'claude/projects/-work-other');
+  fs.mkdirSync(otherDir, { recursive: true });
+  t.write([user('fix the geocoding', now), reply('msg_1', USAGE, now)]);
+  fs.writeFileSync(
+    path.join(otherDir, `${otherId}.jsonl`),
+    [{ ...user('geocoding elsewhere', now), cwd: '/work/other' }, { ...reply('msg_2', USAGE, now), cwd: '/work/other' }].map((l) => JSON.stringify(l)).join('\n') + '\n',
+  );
+  await t.scan();
+  t.store.createIdea({ title: 'Geocoding cache', folder: '/work/my app', column: 'future' });
+
+  t.store.setFolderHidden('/work/my app', true);
+  const board = buildBoard(t.store, t.scanner);
+  assert.deepEqual(board.cards.map((c) => c.id), [otherId]);
+  assert.deepEqual(board.folders.map((f) => f.key), ['/work/other']);
+  assert.deepEqual(board.hiddenFolders, [{ key: '/work/my app', name: 'my app', count: 2 }]);
+  assert.equal(board.accounts.reduce((sum, a) => sum + a.tokens, 0), 60);
+  assert.deepEqual(search('geocoding', t.store, t.scanner).map((r) => r.id), [otherId]);
+  assert.equal(buildCalendar(t.store, t.scanner, new Date(now), { range: '3d' }).stats.tokens, 120);
+
+  t.store.setFolderHidden('/work/my app', false);
+  assert.equal(buildBoard(t.store, t.scanner).cards.length, 3);
+  assert.deepEqual(buildBoard(t.store, t.scanner).hiddenFolders, []);
+  assert.equal(t.store.state.folders['/work/my app'].hidden, undefined);
+});
+
+test('a hidden project still counts its chats before it can be removed', async () => {
+  const t = setup();
+  t.write([user('go', Date.now())]);
+  await t.scan();
+  const key = t.store.createFolder({ name: 'Mine', path: '/work/my app' });
+  t.store.setFolderHidden(key, true);
+  assert.equal(chatCountIn(t.store, t.scanner, key), 1);
+  assert.throws(() => t.store.deleteFolder(key, chatCountIn(t.store, t.scanner, key)), /Move or remove/);
+
+  const empty = t.store.createFolder({ name: 'Someday' });
+  t.store.setFolderHidden(empty, true);
+  assert.deepEqual(buildBoard(t.store, t.scanner).hiddenFolders.map((f) => f.name), ['Mine', 'Someday']);
 });
 
 test('groups usage by account, labels the signed-in one, and remembers it after a switch', async () => {

@@ -37,13 +37,17 @@ It also reads the account fields from `~/.claude.json`, to put an email on the s
 
 Each chat shows its token usage, with subagents included. The header totals whatever is on screen, and the sidebar totals each account on this Mac, whichever one is signed in now.
 
-The **Calendar** tab shows the last 5 weeks, Monday to Sunday, in this computer's time zone. Days are colored by rank among active days, so one huge day doesn't wash out the rest. Click a day to see which chats ran. The statistics on the right cover the whole 5 weeks.
+The **Calendar** tab shows the last 5 weeks or any single month, Monday to Sunday, in this computer's time zone. Days are colored by rank among the days shown, so one huge day doesn't wash out the rest. Click a day to see which chats ran. The statistics on the right have their own range: last 3 days, last week (7 days), last 5 weeks (the same dates as the calendar view) or all time.
 
 - **Tokens** means input, output and cache writes. Cache reads are listed separately in a chat's details: they're the same context reused every turn, and they run hundreds of times larger.
 - **Each message counts once.** Claude Code repeats usage across transcript lines and copies history into forked chats, so totals are keyed by message id.
 - **Small undercount:** background calls that never reach a transcript, such as title generation, aren't included.
 - **Accounts:** older transcripts don't say which account ran them, so those appear as "Account not recorded". An account shows its email once it has been signed in while the tracker is running.
 - **No dollar amounts:** Claude Code's `cost-state` totals cover a whole process, which can span several chats, so they can't be split per chat.
+
+## Closing folders
+
+Hover over a folder in the sidebar and click its × to close it. Its chats and ideas leave the board, search and the board's totals, and new chats started there stay hidden too. The Calendar still counts their usage. Bring a folder back from **Hidden folders** under the folder list.
 
 ## How cards behave
 

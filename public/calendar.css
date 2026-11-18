@@ -58,6 +58,80 @@
   font-size: 12px;
 }
 
+.calendar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.segmented {
+  display: flex;
+  padding: 2px;
+  background: var(--surface-2);
+  border-radius: 7px;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.stats-range .segmented button {
+  padding: 4px 3px;
+  font-size: 11.5px;
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.month-picker {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.month-picker select {
+  height: 28px;
+  padding: 0 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.month-step {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.month-step:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.month-step:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.5;
+}
+
 .calendar-scroll {
   display: flex;
   flex: 1;
@@ -69,7 +143,8 @@
 .calendar-grid {
   display: grid;
   flex: 1;
-  grid-template-rows: auto repeat(5, minmax(72px, 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(64px, 1fr);
   grid-template-columns: repeat(7, minmax(72px, 1fr)) 64px;
   gap: 6px;
   min-width: 590px;
@@ -142,6 +217,13 @@
   cursor: default;
 }
 
+.day.outside {
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
 .day.today .day-number {
   font-weight: 700;
   text-decoration: underline;
@@ -202,11 +284,39 @@
 .calendar-stats {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+
+.stats-range {
+  flex: none;
+  padding: 16px 18px 0;
+}
+
+.stats-summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: 18px;
   min-height: 0;
-  padding: 16px 18px;
+  padding: 8px 18px 16px;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
+}
+
+.stats-period {
+  margin-bottom: -8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The chosen day stays in view at the bottom, whatever the statistics above are showing. */
+.day-panel {
+  flex: none;
+  max-height: 40%;
+  padding: 14px 18px;
+  overflow-y: auto;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
 .stats-grid {
@@ -237,7 +347,8 @@
   border-top: 1px solid var(--border);
 }
 
-.stats-section h2 {
+.stats-section h2,
+.day-panel h2 {
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 650;
@@ -311,5 +422,13 @@
   .calendar-stats {
     border-top: 1px solid var(--border);
     border-left: 0;
+  }
+
+  .stats-summary {
+    overflow-y: visible;
+  }
+
+  .day-panel {
+    max-height: none;
   }
 }

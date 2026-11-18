@@ -33,6 +33,7 @@
           <kbd aria-hidden="true">/</kbd>
         </div>
         <nav id="folders" class="folders" aria-label="Folders"></nav>
+        <div id="hidden-folders" class="hidden-folders"></div>
         <button id="new-project" class="sidebar-action" type="button">+ New project</button>
         <div id="scan-status" class="scan-status" role="status"></div>
       </aside>
@@ -43,7 +44,11 @@
     </div>
     <div id="calendar-view" class="calendar-page" hidden>
       <main class="calendar-main">
-        <header id="calendar-header" class="calendar-header"></header>
+        <header class="calendar-header">
+          <h1 id="calendar-title"></h1>
+          <span id="calendar-range" class="calendar-range"></span>
+          <div id="calendar-controls" class="calendar-controls"></div>
+        </header>
         <div id="calendar-grid" class="calendar-scroll"></div>
         <div class="calendar-legend" aria-hidden="true">
           Fewer tokens
@@ -55,7 +60,11 @@
           More tokens
         </div>
       </main>
-      <aside id="calendar-stats" class="calendar-stats" aria-label="Statistics"></aside>
+      <aside class="calendar-stats" aria-label="Statistics">
+        <div id="stats-range" class="stats-range"></div>
+        <div id="calendar-summary" class="stats-summary"></div>
+        <section id="calendar-day" class="day-panel" aria-label="Selected day"></section>
+      </aside>
     </div>
     <aside id="drawer" class="drawer" aria-label="Card details" hidden></aside>
     <dialog id="form-dialog" class="form-dialog"></dialog>
